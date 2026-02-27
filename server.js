@@ -26,18 +26,18 @@ const upload = multer({ storage: storage });
 
 async function notifyDiscord(orderData, fileData) {
     if (!DISCORD_WEBHOOK_URL) {
-        console.error("❌ ERROR: DISCORD_WEBHOOK_URL is missing!");
+        console.error("❌ ERROR: DISCORD_WEBHOOK_URL missing!");
         return;
     }
 
     try {
         const form = new FormData();
         
-        // 1. ADDING A CONTENT STRING (This fixes the 'empty message' error)
+        // The payload now includes 'content' to prevent the "empty message" error
         const payload = {
-            content: "🔔 **New Order Alert!**", 
+            content: "🔔 **New Receipt Uploaded for Verification**", 
             embeds: [{
-                title: "🍪 Dreamy Dough Receipt Submission",
+                title: "🍪 Dreamy Dough Order",
                 color: 0xB88A44, 
                 fields: [
                     { name: "Order ID", value: orderData.orderId || "N/A", inline: true },
@@ -45,7 +45,6 @@ async function notifyDiscord(orderData, fileData) {
                     { name: "Items", value: orderData.items || "No items listed" }
                 ],
                 image: { url: 'attachment://receipt.png' },
-                footer: { text: "Dreamy Dough Bakery Server" },
                 timestamp: new Date()
             }]
         };
@@ -63,10 +62,10 @@ async function notifyDiscord(orderData, fileData) {
         });
 
         const responseText = await response.text();
-        console.log(`📡 Discord Status: ${response.status} ${response.statusText}`);
+        console.log(`📡 Discord Status: ${response.status}`);
         
         if (response.ok) {
-            console.log("✅ Discord notification sent successfully!");
+            console.log("✅ Success! Message sent to Discord.");
         } else {
             console.error(`⚠️ Discord Error: ${responseText}`);
         }
@@ -78,11 +77,11 @@ async function notifyDiscord(orderData, fileData) {
 
 app.post('/order/upload', upload.single('receipt'), async (req, res) => {
     const { orderId, total, items } = req.body;
-    console.log(`📦 Processing Order: ${orderId}`);
+    console.log(`📦 Processing Receipt for: ${orderId}`);
     
     await notifyDiscord({ orderId, total, items }, req.file);
-    res.status(200).json({ message: "Receipt processed!" });
+    res.status(200).json({ message: "Receipt submitted!" });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Bakery Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Bakery Server active on port ${PORT}`));
