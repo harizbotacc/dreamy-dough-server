@@ -3,7 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const FormData = require('form-data'); // Required for sending images to Discord
+const FormData = require('form-data');
 
 // 1. Secret Webhook from Render Environment Variables
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
@@ -26,9 +26,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// 2. UPGRADED HELPER FUNCTION (Sends Text + Image)
+// 2. DEBUGGED HELPER FUNCTION (Sends Text + Image)
 async function notifyDiscord(orderData, fileData) {
-    if (!DISCORD_WEBHOOK_URL) return;
+    if (!DISCORD_WEBHOOK_URL) {
+        console.error("❌ ERROR: DISCORD_WEBHOOK_URL is missing in Render Environment Variables!");
+        return;
+    }
 
     try {
         const form = new FormData();
@@ -39,11 +42,11 @@ async function notifyDiscord(orderData, fileData) {
                 title: "🍪 New Order Received!",
                 color: 0xB88A44, 
                 fields: [
-                    { name: "Order ID", value: orderData.orderId, inline: true },
-                    { name: "Total", value: `RM ${orderData.total}`, inline: true },
-                    { name: "Items", value: orderData.items }
+                    { name: "Order ID", value: orderData.orderId || "N/A", inline: true },
+                    { name: "Total", value: `RM ${orderData.total || "0"}`, inline: true },
+                    { name: "Items", value: orderData.items || "No items listed" }
                 ],
-                image: { url: 'attachment://receipt.png' }, // Links the attachment to the embed
+                image: { url: 'attachment://receipt.png' },
                 timestamp: new Date()
             }]
         };
@@ -55,29 +58,42 @@ async function notifyDiscord(orderData, fileData) {
             form.append('file', fs.createReadStream(fileData.path), 'receipt.png');
         }
 
-        // Use a dynamic import for fetch if using older Node, or standard fetch for Node 18+
-        await fetch(DISCORD_WEBHOOK_URL, {
+        // Send to Discord and capture the response
+        const response = await fetch(DISCORD_WEBHOOK_URL, {
             method: 'POST',
             body: form,
             headers: form.getHeaders()
         });
+
+        const responseText = await response.text();
         
-        console.log("Discord notification sent!");
+        // These logs will appear in your Render "Logs" tab
+        console.log(`📡 Discord Status: ${response.status} ${response.statusText}`);
+        console.log(`📡 Discord Response: ${responseText}`);
+
+        if (response.ok) {
+            console.log("✅ Discord notification sent successfully!");
+        } else {
+            console.error("⚠️ Discord rejected the notification. Check the status code above.");
+        }
+
     } catch (error) {
-        console.error("Discord notification failed:", error);
+        console.error("❌ Network or Code Error:", error.message);
     }
 }
 
-// 3. UPDATED UPLOAD ROUTE
+// 3. UPLOAD ROUTE
 app.post('/order/upload', upload.single('receipt'), async (req, res) => {
     const { orderId, total, items } = req.body;
+    
+    console.log(`📦 Processing Order: ${orderId}`);
     
     // Pass order details AND the file to the notification function
     await notifyDiscord({ orderId, total, items }, req.file);
 
-    res.status(200).json({ message: "Receipt received and Discord notified!" });
+    res.status(200).json({ message: "Receipt received and processed!" });
 });
 
 // For Render, use process.env.PORT or 3000
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Bakery Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Bakery Server running on port ${PORT}`));
